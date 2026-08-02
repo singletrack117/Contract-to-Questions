@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A&amp;GEL Contract-to-Questions</title>
+<style>
+  :root {
+    /* A&GEL brand palette — cream ground, navy-to-azure gradient */
+    --bg-top: #ece7dc;
+    --bg-bottom: #d8d2c3;
+    --panel: #ffffff;
+    --panel-edge: #d9d3c5;
+    --navy: #21386f;
+    --azure: #2fa9dc;
+    --blue: #1f66ab;
+    --blue-hover: #17568f;
+    --text: #2b3550;
+    --muted: #7c8496;
+    --danger: #bc4f3c;
+    --screen: #f0f6fa;
+    --screen-edge: #c9d8e4;
+    --chip-bg: #e3f2fb;
+    --chip-text: #1f66ab;
+    --key-face: #fdfdfb;
+    --key-edge: #d5d0c2;
+    --grad: linear-gradient(100deg, var(--navy) 0%, var(--blue) 45%, var(--azure) 100%);
+    --heading: Optima, "URW Classico", Candara, "Trebuchet MS", "Inter", sans-serif;
+    --body: "Inter", "Segoe UI", -apple-system, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--body);
+    background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+    padding: 0 1rem 4rem;
+  }
+  /* ---------- Top brand bar (A&GEL Mini-App logo) ---------- */
+  .logobar {
+    height: 56px; background: #D0C6BA; display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 20px; border-bottom: 1px solid rgba(0,0,0,0.08);
+    margin: 0 -1rem 2.5rem;
+  }
+  .logobar .logo { height: 22px; width: auto; display: block; }
+  /* ---------- Device panel ---------- */
+  .device {
+    max-width: 880px;
+    margin: 0 auto;
+    background: linear-gradient(180deg, var(--panel) 0%, #f7f5ef 100%);
+    border: 1px solid var(--panel-edge);
+    border-radius: 22px;
+    padding: 1.8rem 2rem 2.2rem;
+    box-shadow:
+      0 24px 50px rgba(63, 58, 43, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+  .wordmark {
+    font-family: var(--heading);
+    font-weight: 700;
+    font-size: 1.6rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    text-align: center;
+    background: var(--grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    margin-bottom: 0.3rem;
+  }
+  .wordmark span { -webkit-text-fill-color: transparent; }
+  .tagline {
+    text-align: center;
+    font-size: 0.72rem;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1.5rem;
+  }
+  /* ---------- Headings ---------- */
+  h2.section-title {
+    font-family: var(--heading);
+    font-weight: 700;
+    font-size: 1.02rem;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--navy);
+    margin: 1.7rem 0 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+  }
+  h2.section-title::after {
+    content: "";
+    flex: 1;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(47, 169, 220, 0.5), transparent);
+  }
+  h2.section-title .title-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  /* ---------- Dropzone ---------- */
+  .dropzone {
+    background: var(--screen);
+    border: 2px dashed var(--screen-edge);
+    border-radius: 12px;
+    padding: 1.6rem 1.4rem;
+    text-align: center;
+    color: var(--muted);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    box-shadow: inset 0 3px 10px rgba(63, 90, 120, 0.10);
+  }
+  .dropzone:hover, .dropzone.drag {
+    border-color: var(--azure);
+    background: #e9f4fb;
+    color: var(--blue);
+  }
+  .dropzone strong { color: var(--navy); display: block; font-size: 0.98rem; margin-bottom: 0.25rem; }
+  .dropzone .hint { font-size: 0.76rem; }
+  .filename {
+    margin-top: 0.7rem;
+    font-size: 0.8rem;
+    color: var(--blue);
+    font-weight: 600;
+    min-height: 1.1rem;
+  }
+  .or-divider {
+    display: flex; align-items: center; gap: 0.8rem;
+    margin: 1.2rem 0 0.9rem;
+    color: var(--muted); font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase;
+  }
+  .or-divider::before, .or-divider::after {
+    content: ""; flex: 1; height: 1px; background: var(--screen-edge);
+  }
+  /* ---------- Form controls ---------- */
+  .field { display: flex; flex-direction: column; gap: 0.3rem; }
+  label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  textarea, select, input {
+    font-family: var(--body);
+    font-size: 0.9rem;
+    color: var(--text);
+    background: #ffffff;
+    border: 1px solid #d4d8e2;
+    border-radius: 9px;
+    padding: 0.6rem 0.7rem;
+    box-shadow: inset 0 1px 4px rgba(63, 90, 120, 0.08);
+  }
+  textarea { resize: vertical; width: 100%; line-height: 1.55; }
+  #input-text { min-height: 9rem; }
+  #output-text { min-height: 9rem; font-variant-numeric: tabular-nums; }
+  textarea::placeholder { color: #a7aebe; }
+  textarea:focus, select:focus, input:focus { outline: 2px solid var(--azure); outline-offset: -1px; }
+  .options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 0.9rem;
+    margin: 1.1rem 0 0.4rem;
+  }
+  .check-row { display: flex; align-items: center; gap: 0.5rem; }
+  .check-row input { width: auto; box-shadow: none; }
+  .check-row label { color: var(--text); letter-spacing: 0.04em; text-transform: none; font-size: 0.82rem; font-weight: 500; }
+  /* ---------- Keys / buttons ---------- */
+  button {
+    font-family: var(--body);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--blue);
+    background: linear-gradient(180deg, #ffffff 0%, var(--key-face) 100%);
+    border: 1px solid var(--key-edge);
+    border-radius: 10px;
+    padding: 0.6rem 1.1rem;
+    cursor: pointer;
+    box-shadow: 0 2px 0 #cfc9ba, 0 5px 12px rgba(63, 58, 43, 0.12);
+  }
+  button:hover { border-color: var(--azure); color: var(--blue-hover); }
+  button:active { transform: translateY(2px); box-shadow: 0 0 0 #cfc9ba; }
+  button:focus-visible { outline: 2px solid var(--azure); outline-offset: 2px; }
+  button.primary {
+    background: var(--grad);
+    border-color: var(--blue);
+    color: #ffffff;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    box-shadow: 0 3px 0 #1a2c56, 0 6px 16px rgba(33, 56, 111, 0.3);
+  }
+  button.primary:hover { color: #ffffff; filter: brightness(1.08); }
+  button.primary:active { box-shadow: 0 1px 0 #1a2c56; }
+  button.danger { color: var(--danger); border-color: #dcc0b6; }
+  button.small { padding: 0.35rem 0.75rem; font-size: 0.76rem; border-radius: 8px; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+  button:disabled:hover { border-color: var(--key-edge); color: var(--blue); }
+  .actions { display: flex; gap: 0.7rem; flex-wrap: wrap; margin-top: 1.2rem; align-items: center; }
+  /* ---------- Summary (LCD look) ---------- */
+  .summary {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+    background: var(--screen);
+    border: 1px solid var(--screen-edge);
+    border-radius: 10px;
+    padding: 0.8rem 1.2rem;
+    margin-bottom: 1rem;
+    box-shadow: inset 0 2px 8px rgba(63, 90, 120, 0.12);
+    font-variant-numeric: tabular-nums;
+  }
+  .summary .label {
+    display: block;
+    font-size: 0.62rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--blue);
+  }
+  .summary strong { color: var(--navy); font-size: 1.25rem; font-weight: 700; }
+  /* ---------- Rendered clause cards ---------- */
+  .clauses { display: flex; flex-direction: column; gap: 0.7rem; margin-top: 0.4rem; }
+  .clause {
+    background: #ffffff;
+    border: 1px solid var(--screen-edge);
+    border-radius: 10px;
+    padding: 0.8rem 1rem 0.8rem 0.9rem;
+    box-shadow: 0 1px 3px rgba(63, 58, 43, 0.06);
+    display: flex;
+    gap: 0.8rem;
+    align-items: flex-start;
+  }
+  .clause .num {
+    flex: none;
+    min-width: 2.4rem;
+    text-align: center;
+    background: var(--chip-bg);
+    color: var(--chip-text);
+    border: 1px solid rgba(47, 169, 220, 0.35);
+    border-radius: 6px;
+    padding: 0.12rem 0.4rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .clause .num.pre { background: #eee9dd; color: var(--muted); border-color: #d9d3c5; }
+  .clause .body { font-size: 0.9rem; color: var(--text); }
+  .empty { text-align: center; color: var(--muted); padding: 1.6rem 0; font-size: 0.88rem; }
+  .toast {
+    position: fixed; bottom: 1.4rem; left: 50%; transform: translateX(-50%) translateY(2rem);
+    background: var(--navy); color: #fff; padding: 0.6rem 1.2rem; border-radius: 999px;
+    font-size: 0.82rem; box-shadow: 0 8px 24px rgba(33,56,111,0.35);
+    opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .note { font-size: 0.78rem; color: var(--muted); margin-top: 0.5rem; }
+  @media (max-width: 640px) {
+    .device { padding: 1.2rem 1rem 1.6rem; border-radius: 16px; }
+    .summary { gap: 1.2rem; }
+  }
+</style>
+</head>
+<body>
+<div class="logobar"><svg class="logo" preserveAspectRatio="xMinYMid meet" viewBox="0 0 2298 393" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M261.357 304.455C261.335 304.192 261.204 303.951 261.204 303.666C261.204 270.131 275.561 243.6 309.607 218.799C311.202 217.639 314.174 215.625 315.835 214.486C296.124 190.539 284.979 168.889 284.979 147.809C284.979 122.92 294.07 102.628 312.273 86.9984C329.274 72.0038 349.99 64.4954 374.465 64.4954C401.912 64.4954 423.393 72.6386 438.909 88.9249C452.348 102.628 459.056 119.396 459.056 139.206C459.056 172.72 441.443 200.345 406.239 222.038L431.107 256.34C420.902 278.383 406.064 291.758 394.548 302.857L356.787 254.195C337.119 267.285 325.69 284.447 325.69 302.966C325.69 312.247 329.121 319.012 335.983 326.038C343.741 334.006 354.033 335.889 366.86 335.889C381.524 335.889 399.683 330.701 412.62 317.435C438.493 291.671 448.786 266.388 452.807 246.096C454.467 237.69 455.189 229.131 455.473 222.148H510.301C511.787 178.937 527.543 142.183 557.939 112.041C589.888 80.3659 628.829 64.5174 674.763 64.5174C711.847 64.5175 745.15 71.8505 774.673 86.5168V160.265C739.6 138.747 706.711 127.977 676.052 127.977C647.098 127.977 623.06 138.44 603.961 159.367C585.976 179.068 576.995 202.206 576.995 228.781C576.995 258.091 586.916 282.674 606.736 302.528C626.119 321.769 649.523 331.379 676.904 331.379C690.169 331.379 702.275 329.234 713.267 324.966V277.202H654.003V222.586L653.981 222.542H776.356V369.337C743.992 385.076 708.766 392.956 670.677 392.956C626.884 392.956 589.167 376.976 557.502 344.973C527.39 314.546 511.765 277.924 510.301 235.282C509.886 239.463 509.383 243.819 508.749 248.241C506.608 262.995 503.614 277.574 498.828 290.117C490.415 312.313 480.734 323.827 480.734 323.827L530.951 393H458.598C458.57 392.964 445.13 375.304 439.018 366.951C414.63 388.797 387.97 392.584 360.152 392.584C337.229 392.584 310.743 382.974 291.95 364.127C283.602 355.787 277.418 345.761 272.436 335.932L292.54 393H230.654L207.424 328.971H85.2249L61.9958 393H0L116.496 62H175.957L261.357 304.455ZM102.248 278.515H190.183L146.39 146.561L102.248 278.515ZM374.946 124.606C367.669 124.606 361.55 127.014 356.612 131.851C351.651 136.689 349.182 142.993 349.182 150.786C349.182 161.381 357.464 172.238 371.428 185C391.532 173.771 400.273 161.994 400.273 147.043C400.273 132.092 391.816 124.606 374.946 124.606Z" fill="url(#paint0_linear_14_6)"/>
+<path d="M969.652 255.268H879.025V323.817H1009.26V387.605H814.698V191.163H969.652V255.268Z" fill="url(#paint1_linear_14_6)"/>
+<path d="M1108.14 67.395V323.756H1239V387.605H1044.38V131.244H814.698V67.395H1108.14Z" fill="url(#paint2_linear_14_6)"/>
+<path d="M1165.07 67.6699H1194.29L1258.06 223.529H1258.32L1321.45 67.6699H1350.67V256H1331.58V92.3477H1330.93L1262.87 256H1252.74L1184.68 92.3477H1184.16V256H1165.07V67.6699ZM1400.93 67.6699H1420.03V256H1400.93V67.6699ZM1470.03 67.6699H1493.93L1603.55 228.075H1604.07V67.6699H1623.16V256H1599.27L1489.64 94.0361H1489.12V256H1470.03V67.6699ZM1673.43 67.6699H1692.52V256H1673.43V67.6699ZM1730.19 183.915H1789.8V199.111H1730.19V183.915ZM1886.7 67.6699H1905.4L1986.19 256H1964.89L1944.23 206.515H1846.82L1826.3 256H1805.26L1886.7 67.6699ZM1936.96 188.98L1895.53 88.9707L1853.97 188.98H1936.96ZM2013.98 67.6699H2067.1C2076.71 67.6699 2085.42 68.709 2093.21 70.7871C2101 72.7786 2107.67 75.8525 2113.21 80.0088C2118.84 84.165 2123.17 89.4036 2126.2 95.7246C2129.23 102.046 2130.75 109.449 2130.75 117.935C2130.75 126.42 2129.19 133.824 2126.07 140.145C2122.95 146.465 2118.58 151.704 2112.95 155.86C2107.41 160.017 2100.7 163.177 2092.82 165.342C2084.94 167.42 2076.2 168.459 2066.58 168.459H2033.07V256H2013.98V67.6699ZM2065.54 152.224C2080.61 152.224 2092.04 149.323 2099.83 143.521C2107.63 137.633 2111.52 129.104 2111.52 117.935C2111.52 106.245 2107.5 97.7161 2099.44 92.3477C2091.39 86.8926 2080.09 84.165 2065.54 84.165H2033.07V152.224H2065.54ZM2168.28 67.6699H2221.4C2231.02 67.6699 2239.72 68.709 2247.51 70.7871C2255.3 72.7786 2261.97 75.8525 2267.51 80.0088C2273.14 84.165 2277.47 89.4036 2280.5 95.7246C2283.53 102.046 2285.05 109.449 2285.05 117.935C2285.05 126.42 2283.49 133.824 2280.37 140.145C2277.25 146.465 2272.88 151.704 2267.25 155.86C2261.71 160.017 2255 163.177 2247.12 165.342C2239.24 167.42 2230.5 168.459 2220.88 168.459H2187.38V256H2168.28V67.6699ZM2219.85 152.224C2234.91 152.224 2246.34 149.323 2254.13 143.521C2261.93 137.633 2265.82 129.104 2265.82 117.935C2265.82 106.245 2261.8 97.7161 2253.75 92.3477C2245.69 86.8926 2234.39 84.165 2219.85 84.165H2187.38V152.224H2219.85Z" fill="#0E326F"/>
+<defs>
+<linearGradient id="paint0_linear_14_6" x1="705.872" y1="-6.61242" x2="441.778" y2="464.072" gradientUnits="userSpaceOnUse">
+<stop stop-color="#0084A9"/>
+<stop offset="1" stop-color="#0D316E"/>
+</linearGradient>
+<linearGradient id="paint1_linear_14_6" x1="705.872" y1="-6.61242" x2="441.778" y2="464.072" gradientUnits="userSpaceOnUse">
+<stop stop-color="#0084A9"/>
+<stop offset="1" stop-color="#0D316E"/>
+</linearGradient>
+<linearGradient id="paint2_linear_14_6" x1="705.872" y1="-6.61242" x2="441.778" y2="464.072" gradientUnits="userSpaceOnUse">
+<stop stop-color="#0084A9"/>
+<stop offset="1" stop-color="#0D316E"/>
+</linearGradient>
+</defs>
+</svg></div>
+
+<div class="device">
+  <h1 class="wordmark">A&amp;GEL <span>Contract-to-Questions</span></h1>
+  <p class="tagline">Flatten a contract into clause paragraphs</p>
+
+  <h2 class="section-title">Upload Contract
+    <span class="title-actions">
+      <button type="button" class="small" id="load-example">Load example</button>
+    </span>
+  </h2>
+
+  <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Upload a contract file">
+    <strong>Drop a contract here, or click to browse</strong>
+    <span class="hint">Word (.docx), PDF (.pdf), email (.eml), or plain text (.txt, .md)</span>
+    <div class="filename" id="filename"></div>
+  </div>
+  <input type="file" id="file-input" accept=".txt,.md,.docx,.pdf,.eml,.msg,text/plain" hidden>
+
+  <div class="or-divider">or paste the text</div>
+
+  <div class="field">
+    <label for="input-text">Contract text</label>
+    <textarea id="input-text" placeholder="Paste the contract here — clauses can span multiple lines; the tool joins each clause into one paragraph."></textarea>
+  </div>
+
+  <div class="options">
+    <div class="field">
+      <label for="granularity">Clause grouping</label>
+      <select id="granularity">
+        <option value="top" selected>Top-level only &mdash; group sub-clauses (1.1, 1.2&hellip;) under their parent</option>
+        <option value="all">Every numbered item is its own clause</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="separator">Between clauses</label>
+      <select id="separator">
+        <option value="single" selected>Single line break (one carriage return)</option>
+        <option value="blank">Blank line between clauses</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button type="button" class="primary" id="convert">Convert to Question List</button>
+    <button type="button" id="clear">Clear</button>
+  </div>
+
+  <h2 class="section-title">Question List Output
+    <span class="title-actions">
+      <button type="button" class="small" id="copy" disabled>Copy</button>
+      <button type="button" class="small" id="download" disabled>Download .txt</button>
+    </span>
+  </h2>
+
+  <div class="summary" id="summary" hidden>
+    <div><span class="label">Clauses</span><strong id="stat-clauses">0</strong></div>
+    <div><span class="label">Line breaks removed</span><strong id="stat-removed">0</strong></div>
+    <div><span class="label">Words</span><strong id="stat-words">0</strong></div>
+    <div><span class="label">Characters</span><strong id="stat-chars">0</strong></div>
+  </div>
+
+  <div class="field">
+    <label for="output-text">Flattened text &mdash; one paragraph per clause</label>
+    <textarea id="output-text" readonly placeholder="The converted clause list will appear here."></textarea>
+  </div>
+
+  <div class="clauses" id="clauses"><div class="empty">No clauses yet &mdash; upload or paste a contract, then press Convert.</div></div>
+  <p class="note">Everything runs in your browser. Nothing is uploaded to a server. Word and PDF parsing use on-demand libraries (mammoth.js, pdf.js); if those cannot load, paste the text instead.</p>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const dropzone = $("dropzone");
+  const fileInput = $("file-input");
+  const filenameEl = $("filename");
+  const inputText = $("input-text");
+  const outputText = $("output-text");
+  const clausesEl = $("clauses");
+  const summaryEl = $("summary");
+  const granularitySel = $("granularity");
+  const separatorSel = $("separator");
+  const copyBtn = $("copy");
+  const downloadBtn = $("download");
+  const toastEl = $("toast");
+
+  const EXAMPLE = [
+    "1. General: This clause is the start.",
+    "1.1 This is the subclause which should be treated as clause 1.",
+    "2. Scope of agreement: this clause is the second clause"
+  ].join("\n");
+
+  /* ---------- Toast ---------- */
+  let toastTimer;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2200);
+  }
+
+  /* ---------- Clause detection ---------- */
+  // Keyword-led headings such as "Clause 3", "Section 2.1", "Article 5".
+  const KEYWORD = /^\s*(?:clause|section|article|part|schedule|appendix)\s+\d+/i;
+
+  // A new TOP-LEVEL clause: an integer followed by "." or ")" NOT followed by
+  // another digit (so "1." starts a clause but "1.1" does not), or a keyword heading.
+  function isTopLevel(line) {
+    return /^\s*\d+\s*[.)](?!\d)/.test(line) || KEYWORD.test(line);
+  }
+
+  // In "every item" mode any dotted/number marker (1, 1.1, 1.1.1, 1)) starts a clause.
+  function isAnyItem(line) {
+    return /^\s*\d+(?:\.\d+)*\s*[.)]?\s+\S/.test(line) || KEYWORD.test(line);
+  }
+
+  // Pull a short label (the leading number) for display.
+  function labelFor(line) {
+    const m = line.match(/^\s*((?:clause|section|article|part|schedule|appendix)\s+)?(\d+(?:\.\d+)*)/i);
+    return m ? m[2] : "";
+  }
+
+  function convert(raw, mode) {
+    const lines = raw.replace(/\r\n?/g, "\n").split("\n");
+    const starter = mode === "all" ? isAnyItem : isTopLevel;
+    const clauses = [];
+    let current = null;
+
+    for (const line of lines) {
+      if (line.trim() === "") continue; // blank lines are just separators
+      if (starter(line)) {
+        if (current !== null) clauses.push(current);
+        current = line.trim();
+      } else if (current === null) {
+        // Preamble before the first numbered clause (title, parties, recitals).
+        current = line.trim();
+      } else {
+        current += " " + line.trim();
+      }
+    }
+    if (current !== null) clauses.push(current);
+
+    // Normalise each clause: no internal line breaks, tidy spacing around periods.
+    return clauses.map((c) => c.replace(/\s+/g, " ").replace(/\s+([.,;:)])/g, "$1").trim());
+  }
+
+  /* ---------- Render ---------- */
+  let lastOutput = "";
+  function render() {
+    const raw = inputText.value;
+    if (raw.trim() === "") {
+      toast("Nothing to convert — add some contract text first.");
+      return;
+    }
+    const clauses = convert(raw, granularitySel.value);
+    const sep = separatorSel.value === "blank" ? "\n\n" : "\n";
+    lastOutput = clauses.join(sep);
+    outputText.value = lastOutput;
+
+    // Stats
+    const originalBreaks = (raw.replace(/\r\n?/g, "\n").match(/\n/g) || []).length;
+    const keptBreaks = (lastOutput.match(/\n/g) || []).length;
+    const removed = Math.max(0, originalBreaks - keptBreaks);
+    const words = (lastOutput.match(/\S+/g) || []).length;
+    $("stat-clauses").textContent = clauses.length;
+    $("stat-removed").textContent = removed;
+    $("stat-words").textContent = words;
+    $("stat-chars").textContent = lastOutput.length;
+    summaryEl.hidden = false;
+
+    // Cards
+    clausesEl.innerHTML = "";
+    if (!clauses.length) {
+      clausesEl.innerHTML = '<div class="empty">No clauses detected.</div>';
+    } else {
+      const frag = document.createDocumentFragment();
+      clauses.forEach((c) => {
+        const label = labelFor(c);
+        const row = document.createElement("div");
+        row.className = "clause";
+        const num = document.createElement("span");
+        num.className = "num" + (label ? "" : " pre");
+        num.textContent = label || "—";
+        const body = document.createElement("span");
+        body.className = "body";
+        body.textContent = c;
+        row.appendChild(num);
+        row.appendChild(body);
+        frag.appendChild(row);
+      });
+      clausesEl.appendChild(frag);
+    }
+
+    copyBtn.disabled = downloadBtn.disabled = clauses.length === 0;
+    toast(clauses.length + " clause" + (clauses.length === 1 ? "" : "s") + " ready.");
+  }
+
+  /* ---------- File reading ---------- */
+  function readAsText(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+      r.readAsText(file);
+    });
+  }
+  function readAsArrayBuffer(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+      r.readAsArrayBuffer(file);
+    });
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = () => reject(new Error("Could not load " + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function readDocx(file) {
+    if (!window.mammoth) {
+      await loadScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js");
+    }
+    const buf = await readAsArrayBuffer(file);
+    const res = await window.mammoth.extractRawText({ arrayBuffer: buf });
+    return res.value;
+  }
+
+  async function readPdf(file) {
+    if (!window.pdfjsLib) {
+      await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
+      if (window.pdfjsLib) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      }
+    }
+    const buf = await readAsArrayBuffer(file);
+    const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+    const out = [];
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      let lastY = null, line = "";
+      for (const item of content.items) {
+        const y = item.transform[5];
+        if (lastY !== null && Math.abs(y - lastY) > 2) {
+          out.push(line);
+          line = "";
+        }
+        line += item.str;
+        lastY = y;
+      }
+      if (line) out.push(line);
+    }
+    return out.join("\n");
+  }
+
+  function stripEml(text) {
+    // Drop headers up to the first blank line; keep the body.
+    const idx = text.search(/\n\s*\n/);
+    return idx >= 0 ? text.slice(idx).trim() : text;
+  }
+
+  async function handleFile(file) {
+    if (!file) return;
+    filenameEl.textContent = "Reading " + file.name + "…";
+    const name = file.name.toLowerCase();
+    try {
+      let text;
+      if (name.endsWith(".docx")) text = await readDocx(file);
+      else if (name.endsWith(".pdf")) text = await readPdf(file);
+      else if (name.endsWith(".eml")) text = stripEml(await readAsText(file));
+      else text = await readAsText(file);
+      inputText.value = text;
+      filenameEl.textContent = "Loaded: " + file.name;
+      render();
+    } catch (err) {
+      console.error(err);
+      filenameEl.textContent = "";
+      toast("Couldn't read " + file.name + " — try pasting the text instead.");
+    }
+  }
+
+  /* ---------- Wiring ---------- */
+  dropzone.addEventListener("click", () => fileInput.click());
+  dropzone.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+  });
+  fileInput.addEventListener("change", () => handleFile(fileInput.files[0]));
+
+  ["dragenter", "dragover"].forEach((ev) =>
+    dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.add("drag"); })
+  );
+  ["dragleave", "dragend", "drop"].forEach((ev) =>
+    dropzone.addEventListener(ev, () => dropzone.classList.remove("drag"))
+  );
+  dropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+
+  $("convert").addEventListener("click", render);
+  $("clear").addEventListener("click", () => {
+    inputText.value = "";
+    outputText.value = "";
+    lastOutput = "";
+    filenameEl.textContent = "";
+    fileInput.value = "";
+    summaryEl.hidden = true;
+    clausesEl.innerHTML = '<div class="empty">No clauses yet — upload or paste a contract, then press Convert.</div>';
+    copyBtn.disabled = downloadBtn.disabled = true;
+  });
+  $("load-example").addEventListener("click", () => {
+    inputText.value = EXAMPLE;
+    filenameEl.textContent = "";
+    render();
+  });
+  [granularitySel, separatorSel].forEach((el) =>
+    el.addEventListener("change", () => { if (inputText.value.trim()) render(); })
+  );
+
+  copyBtn.addEventListener("click", async () => {
+    if (!lastOutput) return;
+    try {
+      await navigator.clipboard.writeText(lastOutput);
+      toast("Copied to clipboard.");
+    } catch (e) {
+      outputText.select();
+      document.execCommand("copy");
+      toast("Copied to clipboard.");
+    }
+  });
+  downloadBtn.addEventListener("click", () => {
+    if (!lastOutput) return;
+    const blob = new Blob([lastOutput], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "question-list.txt";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+})();
+</script>
+</body>
+</html>
