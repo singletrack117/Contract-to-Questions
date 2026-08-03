@@ -532,8 +532,73 @@
       await loadScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js");
     }
     const buf = await readAsArrayBuffer(file);
-    const res = await window.mammoth.extractRawText({ arrayBuffer: buf });
-    return res.value;
+    // Word keeps clause numbers (1, 1.1, 1.1.1) as *automatic list numbering*,
+    // not as literal text — extractRawText drops them, which breaks clause
+    // grouping. Convert to HTML instead and rebuild the numbers from the
+    // ordered-list nesting so the flattener sees "1.", "1.1", etc.
+    const res = await window.mammoth.convertToHtml({ arrayBuffer: buf });
+    const doc = new DOMParser().parseFromString(res.value || "", "text/html");
+    const lines = [];
+    walkDocx(doc.body, [], lines);
+    if (lines.length) return lines.join("\n");
+    // Fallback: if the HTML walk produced nothing, use raw text.
+    const raw = await window.mammoth.extractRawText({ arrayBuffer: buf });
+    return raw.value;
+  }
+
+  // Text directly inside an element, excluding any nested OL/UL list content.
+  function directText(el) {
+    let s = "";
+    el.childNodes.forEach((n) => {
+      if (n.nodeType === 3) s += n.textContent;
+      else if (n.nodeType === 1 && n.tagName !== "OL" && n.tagName !== "UL") s += n.textContent;
+    });
+    return s.replace(/\s+/g, " ").trim();
+  }
+
+  // Walk mammoth's HTML, emitting one text line per block. Ordered-list items
+  // are prefixed with a reconstructed clause number (1., 1.1, 1.1.1 …) derived
+  // from their nesting depth; bullets and plain paragraphs pass through as-is.
+  function walkDocx(node, olCounters, lines) {
+    if (!node) return;
+    node.childNodes.forEach((child) => {
+      if (child.nodeType !== 1) return;
+      const tag = child.tagName;
+      if (tag === "OL") {
+        olCounters.push(0);
+        walkDocx(child, olCounters, lines);
+        olCounters.pop();
+      } else if (tag === "LI") {
+        const ordered = olCounters.length > 0;
+        if (ordered) olCounters[olCounters.length - 1]++;
+        const own = directText(child);
+        if (own) {
+          if (ordered && markerDepth(own) === 0) {
+            const num = olCounters.join(".");
+            lines.push((olCounters.length === 1 ? num + ". " : num + " ") + own);
+          } else {
+            lines.push(own);
+          }
+        }
+        // Descend only into nested lists so their items get numbered too.
+        Array.from(child.children).forEach((n) => {
+          if (n.tagName === "OL") {
+            olCounters.push(0);
+            walkDocx(n, olCounters, lines);
+            olCounters.pop();
+          } else if (n.tagName === "UL") {
+            walkDocx(n, olCounters, lines);
+          }
+        });
+      } else if (tag === "UL") {
+        walkDocx(child, olCounters, lines);
+      } else if (/^(P|H[1-6]|BLOCKQUOTE|PRE|TD|TH|CAPTION)$/.test(tag)) {
+        const t = child.textContent.replace(/\s+/g, " ").trim();
+        if (t) lines.push(t);
+      } else {
+        walkDocx(child, olCounters, lines);
+      }
+    });
   }
 
   async function readPdf(file) {
