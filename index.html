@@ -388,22 +388,71 @@
 
   /* ---------- Clause detection ---------- */
   // Keyword-led headings such as "Clause 3", "Section 2.1", "Article 5".
-  const KEYWORD_RE = /^\s*(?:clause|section|article|part|schedule|appendix)\s+(\d+(?:\.\d+)*)/i;
+  const KEYWORD_HEAD_RE = /^\s*(?:clause|section|article|part|schedule|appendix)\s+(\d+(?:\.\d+)*)\b(.*)$/i;
 
   // Numbering depth of the marker that starts a line: 1 for "1." / "2)",
   // 2 for "1.1", 3 for "1.1.1", and so on. Returns 0 when the line has no
   // clause marker at all.
-  //  - a keyword heading ("Clause 3", "Section 2.1") uses its number's depth
   //  - a dotted number ("1.1", "1.1.1") counts with or without a trailing . or )
   //  - a bare number needs a trailing "." or ")" ("1.", "2)") to count as a marker
+  //  - a keyword heading ("Part 3", "Section 2.1") counts only when the line
+  //    reads like a heading (short / ends after the number), not prose that
+  //    merely starts with the word (e.g. "Schedule 1 will apply to this…")
   function markerDepth(line) {
-    let m = line.match(KEYWORD_RE);
-    if (m) return m[1].split(".").length;
-    m = line.match(/^\s*(\d+(?:\.\d+)+)[.)]?(?=\s|$)/);
+    let m = line.match(/^\s*(\d+(?:\.\d+)+)[.)]?(?=\s|$)/);
     if (m) return m[1].split(".").length;
     m = line.match(/^\s*\d+[.)](?=\s|$)/);
     if (m) return 1;
+    m = line.match(KEYWORD_HEAD_RE);
+    if (m) {
+      const rest = (m[2] || "").trim();
+      const words = line.trim().split(/\s+/).length;
+      if (rest === "" || /^[-–—:.)]/.test(rest) || words <= 8) return m[1].split(".").length;
+    }
     return 0;
+  }
+
+  // The dotted/plain number a line *starts* with (no trailing delimiter), or null.
+  function leadingNumber(line) {
+    const m = line.match(/^\s*(\d+(?:\.\d+)*)(?=[.)\s]|$)/);
+    return m ? m[1] : null;
+  }
+
+  // The number of a line that is *nothing but* a number (e.g. "1", "1.1", "2)"),
+  // or null if the line has other content.
+  function orphanNumber(line) {
+    const m = line.match(/^\s*(\d+(?:\.\d+)*)[.)]?\s*$/);
+    return m ? m[1] : null;
+  }
+
+  // Clean up extraction artifacts before flattening. Contracts (especially from
+  // PDF/Word) often render the clause number as its own text element, so the
+  // number appears on a line by itself right before the clause text — and stray
+  // page numbers show up as lone integers. Left alone these become spurious
+  // clauses (a bare "1.1" is itself a depth-2 marker). This drops the noise and,
+  // when a number sits on its own line with its text following, rejoins them.
+  function normalizeLines(lines) {
+    const out = [];
+    for (let i = 0; i < lines.length; i++) {
+      const cur = lines[i];
+      if (cur.trim() === "") continue;
+      if (/^\s*\d+\s*$/.test(cur)) continue; // lone page number / stray integer
+      const orphan = orphanNumber(cur); // a number-only line like "1.1"
+      if (orphan != null) {
+        let j = i + 1;
+        while (j < lines.length && lines[j].trim() === "") j++;
+        const next = j < lines.length ? lines[j] : null;
+        const nextLead = next != null ? leadingNumber(next) : null;
+        if (nextLead === orphan) continue; // number already repeated on the next line — drop the orphan
+        if (next != null && nextLead === null) {
+          // a clause number on its own line, its text on the next — rejoin them
+          lines[j] = orphan + (orphan.includes(".") ? " " : ". ") + next.trim();
+          continue;
+        }
+      }
+      out.push(cur);
+    }
+    return out;
   }
 
   // Deepest numbering level that still starts a new clause, per dropdown value.
@@ -421,7 +470,7 @@
   }
 
   function convert(raw, mode) {
-    const lines = raw.replace(/\r\n?/g, "\n").split("\n");
+    const lines = normalizeLines(raw.replace(/\r\n?/g, "\n").split("\n"));
     const maxLevel = maxLevelFor(mode);
     const starter = (line) => {
       const d = markerDepth(line);
