@@ -59,6 +59,10 @@ a single carriage return.
 ## Notes
 
 - Everything runs locally in your browser — nothing is uploaded to a server.
-- Word and PDF parsing use on-demand CDN libraries (mammoth.js, pdf.js) and
-  degrade gracefully with a clear message if those cannot load; paste the text
+- Word (`.docx`) clause numbers are read straight from the document's XML
+  (via JSZip), so Word's automatic list numbering — including style-based and
+  multi-level numbering — is reconstructed rather than lost. PDF parsing uses
+  pdf.js; a mammoth.js pass is kept as a fallback.
+- Word and PDF parsing use on-demand CDN libraries (JSZip, mammoth.js, pdf.js)
+  and degrade gracefully with a clear message if those cannot load; paste the text
   as a fallback.

@@ -349,7 +349,7 @@
   </div>
 
   <div class="clauses" id="clauses"><div class="empty">No clauses yet &mdash; upload or paste a contract, then press Convert.</div></div>
-  <p class="note">Everything runs in your browser. Nothing is uploaded to a server. Word and PDF parsing use on-demand libraries (mammoth.js, pdf.js); if those cannot load, paste the text instead.</p>
+  <p class="note">Everything runs in your browser. Nothing is uploaded to a server. Word and PDF parsing use on-demand libraries (JSZip, mammoth.js, pdf.js); if those cannot load, paste the text instead.</p>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -528,20 +528,172 @@
   }
 
   async function readDocx(file) {
+    const buf = await readAsArrayBuffer(file);
+    // Primary: read the .docx XML directly. Word keeps clause numbers
+    // (1, 1.1, 1.1.1) as *automatic list numbering* — either on the paragraph
+    // or on its style — not as literal text, and clauses are often separated by
+    // soft line breaks inside a single paragraph. Parsing the XML lets us
+    // reconstruct the real numbering and honour those line breaks, which the
+    // HTML conversion loses (producing far too few clauses).
+    try {
+      const text = await docxToText(buf);
+      if (text && text.trim()) return text;
+    } catch (e) {
+      console.warn("Direct .docx parse failed; falling back to mammoth.", e);
+    }
+    return readDocxViaMammoth(buf);
+  }
+
+  /* ----- Primary: parse the .docx package XML directly ----- */
+  function wval(el) { return el && (el.getAttribute("w:val") ?? el.getAttribute("val")); }
+  function wattr(el, name) { return el && (el.getAttribute("w:" + name) ?? el.getAttribute(name)); }
+  function childLocal(parent, local) {
+    if (!parent) return null;
+    for (const c of parent.children) if (c.localName === local) return c;
+    return null;
+  }
+  function childrenLocal(parent, local) {
+    return parent ? Array.from(parent.children).filter((c) => c.localName === local) : [];
+  }
+
+  async function docxToText(buf) {
+    if (!window.JSZip) {
+      await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");
+    }
+    const zip = await window.JSZip.loadAsync(buf);
+    const docFile = zip.file("word/document.xml");
+    if (!docFile) throw new Error("no word/document.xml");
+    const parse = (s) => new DOMParser().parseFromString(s, "application/xml");
+    const doc = parse(await docFile.async("string"));
+    const numbering = zip.file("word/numbering.xml")
+      ? parse(await zip.file("word/numbering.xml").async("string")) : null;
+    const styles = zip.file("word/styles.xml")
+      ? parse(await zip.file("word/styles.xml").async("string")) : null;
+
+    // numId -> abstractNumId, and abstractNumId -> per-level {numFmt, start}
+    const numIdToAbstract = {}, abstractLevels = {};
+    if (numbering) {
+      const root = numbering.documentElement;
+      for (const num of childrenLocal(root, "num")) {
+        const id = wattr(num, "numId");
+        const absEl = childLocal(num, "abstractNumId");
+        if (id != null) numIdToAbstract[id] = absEl ? wval(absEl) : null;
+      }
+      for (const an of childrenLocal(root, "abstractNum")) {
+        const absId = wattr(an, "abstractNumId");
+        const lv = {};
+        for (const l of childrenLocal(an, "lvl")) {
+          const il = parseInt(wattr(l, "ilvl"), 10) || 0;
+          const fmtEl = childLocal(l, "numFmt");
+          const startEl = childLocal(l, "start");
+          lv[il] = {
+            numFmt: fmtEl ? wval(fmtEl) : "decimal",
+            start: startEl ? (parseInt(wval(startEl), 10) || 1) : 1,
+          };
+        }
+        abstractLevels[absId] = lv;
+      }
+    }
+
+    // Paragraph styles that carry numbering (numbered heading styles, etc.)
+    const styleNumPr = {};
+    if (styles) {
+      for (const st of childrenLocal(styles.documentElement, "style")) {
+        const sid = wattr(st, "styleId");
+        const pPr = childLocal(st, "pPr");
+        const np = pPr ? childLocal(pPr, "numPr") : null;
+        if (sid && np) styleNumPr[sid] = np;
+      }
+    }
+
+    // Running counters, one list instance per numId; deeper levels reset when a
+    // shallower level advances. Bullet/none formats are not clause numbers.
+    const counters = {};
+    function nextNumber(numId, ilvl) {
+      const abs = numIdToAbstract[numId];
+      if (abs === undefined || abs === null) return null;
+      const levels = abstractLevels[abs] || {};
+      const lvl = levels[ilvl];
+      const fmt = lvl ? lvl.numFmt : "decimal";
+      if (fmt === "bullet" || fmt === "none") return null;
+      const arr = counters[numId] || (counters[numId] = []);
+      const start = lvl ? lvl.start : 1;
+      arr[ilvl] = arr[ilvl] === undefined ? start : arr[ilvl] + 1;
+      for (let k = ilvl + 1; k < arr.length; k++) arr[k] = undefined;
+      const parts = [];
+      for (let k = 0; k <= ilvl; k++) {
+        const s = levels[k] ? levels[k].start : 1;
+        if (arr[k] === undefined) arr[k] = s;
+        parts.push(arr[k]);
+      }
+      return parts.join(".");
+    }
+
+    function paraNumInfo(p) {
+      const pPr = childLocal(p, "pPr");
+      if (!pPr) return null;
+      let numPr = childLocal(pPr, "numPr");
+      if (!numPr) {
+        const ps = childLocal(pPr, "pStyle");
+        const sid = ps ? wval(ps) : null;
+        if (sid && styleNumPr[sid]) numPr = styleNumPr[sid];
+      }
+      if (!numPr) return null;
+      const ilvlEl = childLocal(numPr, "ilvl");
+      const numIdEl = childLocal(numPr, "numId");
+      const numId = numIdEl ? wval(numIdEl) : null;
+      if (numId == null || numId === "0") return null; // numId 0 means "no numbering"
+      const ilvl = ilvlEl ? (parseInt(wval(ilvlEl), 10) || 0) : 0;
+      return { numId, ilvl };
+    }
+
+    // Text of a paragraph, turning tabs into spaces and w:br / w:cr into newlines
+    // so a paragraph that stacks several clauses on soft breaks splits properly.
+    function paraText(p) {
+      let out = "";
+      const walk = (node) => {
+        for (const c of node.childNodes) {
+          if (c.nodeType !== 1) continue;
+          const ln = c.localName;
+          if (ln === "t") out += c.textContent;
+          else if (ln === "tab") out += "\t";
+          else if (ln === "br" || ln === "cr") out += "\n";
+          else if (ln !== "pPr") walk(c);
+        }
+      };
+      walk(p);
+      return out;
+    }
+
+    const lines = [];
+    const paras = Array.from(doc.getElementsByTagName("*")).filter((e) => e.localName === "p");
+    for (const p of paras) {
+      const info = paraNumInfo(p);
+      const num = info ? nextNumber(info.numId, info.ilvl) : null;
+      const subLines = paraText(p)
+        .split("\n")
+        .map((s) => s.replace(/[ \t]+/g, " ").trim())
+        .filter(Boolean);
+      if (!subLines.length) continue;
+      if (num != null && markerDepth(subLines[0]) === 0) {
+        const depth = num.split(".").length;
+        subLines[0] = (depth === 1 ? num + ". " : num + " ") + subLines[0];
+      }
+      for (const sl of subLines) lines.push(sl);
+    }
+    return lines.join("\n");
+  }
+
+  /* ----- Fallback: mammoth HTML + ordered-list reconstruction ----- */
+  async function readDocxViaMammoth(buf) {
     if (!window.mammoth) {
       await loadScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js");
     }
-    const buf = await readAsArrayBuffer(file);
-    // Word keeps clause numbers (1, 1.1, 1.1.1) as *automatic list numbering*,
-    // not as literal text — extractRawText drops them, which breaks clause
-    // grouping. Convert to HTML instead and rebuild the numbers from the
-    // ordered-list nesting so the flattener sees "1.", "1.1", etc.
     const res = await window.mammoth.convertToHtml({ arrayBuffer: buf });
     const doc = new DOMParser().parseFromString(res.value || "", "text/html");
     const lines = [];
     walkDocx(doc.body, [], lines);
     if (lines.length) return lines.join("\n");
-    // Fallback: if the HTML walk produced nothing, use raw text.
     const raw = await window.mammoth.extractRawText({ arrayBuffer: buf });
     return raw.value;
   }
