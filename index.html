@@ -309,7 +309,9 @@
     <div class="field">
       <label for="granularity">Clause grouping</label>
       <select id="granularity">
-        <option value="top" selected>Top-level only &mdash; group sub-clauses (1.1, 1.2&hellip;) under their parent</option>
+        <option value="top" selected>Top-level only &mdash; group sub-clauses (1.1, 1.1.1&hellip;) under clause 1</option>
+        <option value="2">2nd-level &mdash; split down to 1.1, group deeper (1.1.1&hellip;) under it</option>
+        <option value="3">3rd-level &mdash; split down to 1.1.1, group deeper (1.1.1.1&hellip;) under it</option>
         <option value="all">Every numbered item is its own clause</option>
       </select>
     </div>
@@ -386,17 +388,30 @@
 
   /* ---------- Clause detection ---------- */
   // Keyword-led headings such as "Clause 3", "Section 2.1", "Article 5".
-  const KEYWORD = /^\s*(?:clause|section|article|part|schedule|appendix)\s+\d+/i;
+  const KEYWORD_RE = /^\s*(?:clause|section|article|part|schedule|appendix)\s+(\d+(?:\.\d+)*)/i;
 
-  // A new TOP-LEVEL clause: an integer followed by "." or ")" NOT followed by
-  // another digit (so "1." starts a clause but "1.1" does not), or a keyword heading.
-  function isTopLevel(line) {
-    return /^\s*\d+\s*[.)](?!\d)/.test(line) || KEYWORD.test(line);
+  // Numbering depth of the marker that starts a line: 1 for "1." / "2)",
+  // 2 for "1.1", 3 for "1.1.1", and so on. Returns 0 when the line has no
+  // clause marker at all.
+  //  - a keyword heading ("Clause 3", "Section 2.1") uses its number's depth
+  //  - a dotted number ("1.1", "1.1.1") counts with or without a trailing . or )
+  //  - a bare number needs a trailing "." or ")" ("1.", "2)") to count as a marker
+  function markerDepth(line) {
+    let m = line.match(KEYWORD_RE);
+    if (m) return m[1].split(".").length;
+    m = line.match(/^\s*(\d+(?:\.\d+)+)[.)]?(?=\s|$)/);
+    if (m) return m[1].split(".").length;
+    m = line.match(/^\s*\d+[.)](?=\s|$)/);
+    if (m) return 1;
+    return 0;
   }
 
-  // In "every item" mode any dotted/number marker (1, 1.1, 1.1.1, 1)) starts a clause.
-  function isAnyItem(line) {
-    return /^\s*\d+(?:\.\d+)*\s*[.)]?\s+\S/.test(line) || KEYWORD.test(line);
+  // Deepest numbering level that still starts a new clause, per dropdown value.
+  // "top" => 1, "2" => 2, "3" => 3, "all" => no limit.
+  function maxLevelFor(mode) {
+    if (mode === "all") return Infinity;
+    const n = parseInt(mode, 10);
+    return Number.isFinite(n) ? n : 1;
   }
 
   // Pull a short label (the leading number) for display.
@@ -407,7 +422,11 @@
 
   function convert(raw, mode) {
     const lines = raw.replace(/\r\n?/g, "\n").split("\n");
-    const starter = mode === "all" ? isAnyItem : isTopLevel;
+    const maxLevel = maxLevelFor(mode);
+    const starter = (line) => {
+      const d = markerDepth(line);
+      return d > 0 && d <= maxLevel;
+    };
     const clauses = [];
     let current = null;
 

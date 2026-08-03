@@ -36,9 +36,12 @@ a single carriage return.
   text (`.txt`, `.md`) — drag-and-drop or click to browse — or just paste the text.
 - **Clause flattening**: multi-line clauses are joined into one paragraph,
   keeping the leading clause number.
-- **Sub-clause grouping**: by default a sub-clause (`1.1`, `1.2`, …) is folded
-  into its parent top-level clause. Switch to **"Every numbered item is its own
-  clause"** to keep each numbered item apart.
+- **Sub-clause grouping**: choose how deep the numbering splits into separate
+  clauses:
+  - **Top-level only** (default) — `1.1`, `1.1.1`, … all fold into clause `1`.
+  - **2nd-level** — split down to `1.1`; deeper items (`1.1.1`, …) fold into it.
+  - **3rd-level** — split down to `1.1.1`; deeper items fold into it.
+  - **Every numbered item is its own clause** — no grouping.
 - **Heading detection**: recognises `1.`, `2)`, `10.` style numbering as well as
   `Clause 3`, `Section 2.1`, `Article 5` headings.
 - **Live stats**: clauses detected, line breaks removed, words, and characters.
