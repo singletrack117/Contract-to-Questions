@@ -407,9 +407,36 @@
     if (m) {
       const rest = (m[2] || "").trim();
       const words = line.trim().split(/\s+/).length;
-      if (rest === "" || /^[-–—:.)]/.test(rest) || words <= 8) return m[1].split(".").length;
+      // A period right after the number ("Schedule 1. Notice will be deemed…")
+      // signals a cross-reference in prose, not a heading — never a marker.
+      if (/^\./.test(rest)) return 0;
+      if (rest === "" || /^[-–—:)]/.test(rest) || words <= 6) return m[1].split(".").length;
     }
     return 0;
+  }
+
+  // Format a counter value the way Word's numFmt asks: 1, A/a, I/i, 01…
+  function intToLetter(n) {
+    let s = "";
+    while (n > 0) { n--; s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26); }
+    return s;
+  }
+  function intToRoman(n) {
+    if (!n || n < 1) return String(n);
+    const map = [[1000,"M"],[900,"CM"],[500,"D"],[400,"CD"],[100,"C"],[90,"XC"],[50,"L"],[40,"XL"],[10,"X"],[9,"IX"],[5,"V"],[4,"IV"],[1,"I"]];
+    let r = "";
+    for (const [v, sym] of map) while (n >= v) { r += sym; n -= v; }
+    return r;
+  }
+  function formatNumber(val, fmt) {
+    switch (fmt) {
+      case "upperLetter": return intToLetter(val);
+      case "lowerLetter": return intToLetter(val).toLowerCase();
+      case "upperRoman": return intToRoman(val);
+      case "lowerRoman": return intToRoman(val).toLowerCase();
+      case "decimalZero": return (val < 10 ? "0" : "") + val;
+      default: return String(val);
+    }
   }
 
   // The dotted/plain number a line *starts* with (no trailing delimiter), or null.
@@ -640,9 +667,11 @@
           const il = parseInt(wattr(l, "ilvl"), 10) || 0;
           const fmtEl = childLocal(l, "numFmt");
           const startEl = childLocal(l, "start");
+          const textEl = childLocal(l, "lvlText");
           lv[il] = {
             numFmt: fmtEl ? wval(fmtEl) : "decimal",
             start: startEl ? (parseInt(wval(startEl), 10) || 1) : 1,
+            lvlText: textEl ? wval(textEl) : null,
           };
         }
         abstractLevels[absId] = lv;
@@ -674,13 +703,24 @@
       const start = lvl ? lvl.start : 1;
       arr[ilvl] = arr[ilvl] === undefined ? start : arr[ilvl] + 1;
       for (let k = ilvl + 1; k < arr.length; k++) arr[k] = undefined;
-      const parts = [];
       for (let k = 0; k <= ilvl; k++) {
-        const s = levels[k] ? levels[k].start : 1;
-        if (arr[k] === undefined) arr[k] = s;
-        parts.push(arr[k]);
+        if (arr[k] === undefined) arr[k] = levels[k] ? levels[k].start : 1;
       }
-      return parts.join(".");
+      // Honour Word's level text ("%1.", "%1.%2", "(%1)", "Schedule %1", "%1)")
+      // and each level's format (decimal, letters, roman) so the reconstructed
+      // number matches exactly what Word — and therefore the PDF — renders.
+      if (lvl && lvl.lvlText) {
+        return lvl.lvlText.replace(/%(\d)/g, (_, d) => {
+          const k = parseInt(d, 10) - 1;
+          const v = arr[k] !== undefined ? arr[k] : (levels[k] ? levels[k].start : 1);
+          return formatNumber(v, levels[k] ? levels[k].numFmt : "decimal");
+        });
+      }
+      // Fallback when the level text is unavailable: dotted decimal.
+      const parts = [];
+      for (let k = 0; k <= ilvl; k++) parts.push(arr[k]);
+      const joined = parts.join(".");
+      return ilvl === 0 ? joined + "." : joined;
     }
 
     function paraNumInfo(p) {
@@ -730,8 +770,9 @@
         .filter(Boolean);
       if (!subLines.length) continue;
       if (num != null && markerDepth(subLines[0]) === 0) {
-        const depth = num.split(".").length;
-        subLines[0] = (depth === 1 ? num + ". " : num + " ") + subLines[0];
+        // num is already the fully formatted marker ("1.", "1.1", "(1)",
+        // "Schedule 1"); just place it in front of the clause text.
+        subLines[0] = num + " " + subLines[0];
       }
       for (const sl of subLines) lines.push(sl);
     }
