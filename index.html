@@ -432,6 +432,11 @@
   // clauses (a bare "1.1" is itself a depth-2 marker). This drops the noise and,
   // when a number sits on its own line with its text following, rejoins them.
   function normalizeLines(lines) {
+    // Strip page-footer / header markers like "- 2 -" (a number flanked by
+    // dashes) wherever they sit — on their own line or tacked onto a clause.
+    lines = lines.map((l) =>
+      l.replace(/\s*[-–—]\s*\d+\s*[-–—]\s*$/, "").replace(/^\s*[-–—]\s*\d+\s*[-–—]\s*/, "")
+    );
     const out = [];
     for (let i = 0; i < lines.length; i++) {
       const cur = lines[i];
