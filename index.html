@@ -166,6 +166,22 @@
   .check-row { display: flex; align-items: center; gap: 0.5rem; }
   .check-row input { width: auto; box-shadow: none; }
   .check-row label { color: var(--text); letter-spacing: 0.04em; text-transform: none; font-size: 0.82rem; font-weight: 500; }
+  /* ---------- Column-to-flatten picker (large, full width) ---------- */
+  .column-field { margin: 1.1rem 0 0.2rem; }
+  .column-field select {
+    width: 100%;
+    font-size: 1.02rem;
+    font-weight: 600;
+    color: var(--navy);
+    padding: 0.95rem 1rem;
+    border: 1px solid var(--screen-edge);
+    border-radius: 12px;
+    background: var(--screen);
+    box-shadow: inset 0 2px 8px rgba(63, 90, 120, 0.12);
+    cursor: pointer;
+  }
+  .column-field select:disabled { color: var(--muted); font-weight: 500; cursor: not-allowed; opacity: 0.8; }
+  .column-hint { font-size: 0.74rem; color: var(--muted); margin-top: 0.35rem; }
   /* ---------- Keys / buttons ---------- */
   button {
     font-family: var(--body);
@@ -338,6 +354,14 @@
     </div>
   </div>
 
+  <div class="field column-field">
+    <label for="column">Column to flatten</label>
+    <select id="column" disabled>
+      <option value="">Upload a checklist table to choose a column&hellip;</option>
+    </select>
+    <span class="column-hint" id="column-hint">For a table checklist, pick which column becomes the questions (defaults to the &ldquo;Disclosure Requirement&rdquo; column).</span>
+  </div>
+
   <div class="actions">
     <button type="button" class="primary" id="convert">Flatten to Questions</button>
     <button type="button" id="clear">Clear</button>
@@ -381,9 +405,17 @@
   const summaryEl = $("summary");
   const granularitySel = $("granularity");
   const separatorSel = $("separator");
+  const columnSel = $("column");
   const copyBtn = $("copy");
   const downloadBtn = $("download");
   const toastEl = $("toast");
+
+  // Remembered .docx so the column picker can re-extract a different column
+  // without re-reading the file. detectedColumns holds the table's header
+  // labels; detectedDefaultCol is the value pre-selected after a load.
+  let lastDocxBuffer = null;
+  let detectedColumns = [];
+  let detectedDefaultCol = "*";
 
   const EXAMPLE = [
     "PART 1 OF THE 5TH SCHEDULE SFR: FRONT COVER",
@@ -733,6 +765,7 @@
 
   async function readDocx(file) {
     const buf = await readAsArrayBuffer(file);
+    lastDocxBuffer = buf; // keep it so the column picker can re-extract
     // Primary: read the .docx XML directly. Word keeps clause numbers
     // (1, 1.1, 1.1.1) as *automatic list numbering* — either on the paragraph
     // or on its style — not as literal text, and clauses are often separated by
@@ -745,7 +778,52 @@
     } catch (e) {
       console.warn("Direct .docx parse failed; falling back to mammoth.", e);
     }
-    return readDocxViaMammoth(buf);
+    return readDocxViaMammoth(buf); // mammoth loses columns → picker stays disabled
+  }
+
+  // Fill the "Column to flatten" picker from the last-parsed table's headers.
+  function populateColumnPicker() {
+    columnSel.innerHTML = "";
+    if (!lastDocxBuffer || !detectedColumns.length) {
+      const o = document.createElement("option");
+      o.value = "";
+      o.textContent = lastDocxBuffer
+        ? "No table columns detected — flattening the whole document"
+        : "Upload a checklist table to choose a column…";
+      columnSel.appendChild(o);
+      columnSel.disabled = true;
+      return;
+    }
+    const optAll = document.createElement("option");
+    optAll.value = "*";
+    optAll.textContent = "All columns (join every cell)";
+    columnSel.appendChild(optAll);
+    detectedColumns.forEach((c) => {
+      const o = document.createElement("option");
+      o.value = String(c.index);
+      o.textContent = "Column " + (c.index + 1) + " — " + c.label;
+      columnSel.appendChild(o);
+    });
+    columnSel.disabled = false;
+    columnSel.value = detectedDefaultCol;
+  }
+
+  // Re-extract the chosen column from the remembered .docx and re-render.
+  async function onColumnChange() {
+    if (!lastDocxBuffer) return;
+    const prev = filenameEl.textContent;
+    filenameEl.textContent = "Re-reading column…";
+    try {
+      const text = await docxToText(lastDocxBuffer, { col: columnSel.value });
+      inputText.value = text;
+      render();
+      const opt = columnSel.options[columnSel.selectedIndex];
+      filenameEl.textContent = "Flattening: " + (opt ? opt.textContent : prev);
+    } catch (e) {
+      console.warn(e);
+      filenameEl.textContent = prev;
+      toast("Couldn't switch column — re-reading failed.");
+    }
   }
 
   /* ----- Primary: parse the .docx package XML directly ----- */
@@ -760,7 +838,8 @@
     return parent ? Array.from(parent.children).filter((c) => c.localName === local) : [];
   }
 
-  async function docxToText(buf) {
+  async function docxToText(buf, opts) {
+    opts = opts || {};
     if (!window.JSZip) {
       await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");
     }
@@ -909,23 +988,57 @@
 
     // A checklist is usually a table whose columns are
     //   [ №  |  DISCLOSURE REQUIREMENT  |  SECTION  |  PAGE(S)  |  REMARKS ].
-    // Keep only the number column and the requirement column — the questions —
-    // and drop the cross-reference columns, reconstructing each requirement's
-    // (a)/(i)/(A) numbering as we go. Full-width rows are PART/section headings.
-    // A table with no recognisable requirement header falls back to joining
-    // every cell (ordinary contract tables).
+    // By default we flatten the "Disclosure Requirement" column (the questions)
+    // together with the number column beside it, reconstructing each
+    // requirement's (a)/(i)/(A) numbering; the cross-reference columns are
+    // dropped. The user can instead pick any single column via opts.col (its
+    // 0-based index) or "*" to join every cell (the plain-contract fallback).
+    // Full-width rows are always kept as PART / section headings. As a side
+    // effect we publish the first table's header labels in `detectedColumns`
+    // and the auto-detected default in `detectedDefaultCol`, so the column
+    // picker can list them.
     function pushTable(tbl) {
       const rows = childrenLocal(tbl, "tr");
-      let reqCol = null;
+
+      // Auto-detect the requirement column by its header text.
+      let reqAuto = null;
       for (const tr of rows) {
         const cells = childrenLocal(tr, "tc");
         for (let ci = 0; ci < cells.length; ci++) {
-          if (cellText(cells[ci]).toUpperCase().indexOf("DISCLOSURE REQUIREMENT") >= 0) { reqCol = ci; break; }
+          if (cellText(cells[ci]).toUpperCase().indexOf("DISCLOSURE REQUIREMENT") >= 0) { reqAuto = ci; break; }
         }
-        if (reqCol != null) break;
+        if (reqAuto != null) break;
       }
-      const numCol = reqCol != null && reqCol - 1 >= 0 ? reqCol - 1 : null;
-      let headerDone = false;
+
+      // Publish the header labels of the first (widest) table for the picker.
+      if (detectedColumns.length === 0) {
+        let headerRow = null, maxCells = 1;
+        for (const tr of rows) {
+          const n = childrenLocal(tr, "tc").length;
+          if (n > maxCells) { maxCells = n; headerRow = tr; }
+        }
+        if (headerRow) {
+          const hc = childrenLocal(headerRow, "tc");
+          detectedColumns = hc.map((c, ci) => {
+            const label = cellText(c).replace(/\s+/g, " ").trim();
+            return { index: ci, label: label || "Column " + (ci + 1) + " (no heading)" };
+          });
+          detectedDefaultCol = reqAuto != null ? String(reqAuto) : "*";
+        }
+      }
+
+      // Resolve which column this run should emit.
+      let sel = opts.col;
+      let reqCol; // a column index, or "ALL"
+      if (sel === "*") reqCol = "ALL";
+      else if (sel != null && sel !== "" && !isNaN(parseInt(sel, 10))) reqCol = parseInt(sel, 10);
+      else reqCol = reqAuto != null ? reqAuto : "ALL";
+      // Only prepend the number column and reconstruct numbering when we are
+      // emitting the requirement column itself.
+      const isReqCol = reqCol !== "ALL" && reqCol === reqAuto;
+      const numCol = isReqCol && reqCol - 1 >= 0 ? reqCol - 1 : null;
+
+      let headerDropped = false;
       for (const tr of rows) {
         const cells = childrenLocal(tr, "tc");
         if (cells.length <= 1) { // full-width row → PART / section heading
@@ -933,19 +1046,21 @@
           if (t) lines.push(t);
           continue;
         }
-        if (reqCol == null) { // generic table — keep every cell
+        if (reqCol === "ALL") { // join every cell (generic tables)
           const t = cells.map(cellText).filter(Boolean).join(" — ");
           if (t) lines.push(t);
           continue;
         }
-        if (!headerDone && cells.map(cellText).join(" ").toUpperCase().indexOf("DISCLOSURE REQUIREMENT") >= 0) {
-          headerDone = true; // drop the header row once
+        // Drop the one header row (the row that names the columns).
+        if (!headerDropped && reqAuto != null &&
+            cells.map(cellText).join(" ").toUpperCase().indexOf("DISCLOSURE REQUIREMENT") >= 0) {
+          headerDropped = true;
           continue;
         }
         let numText = numCol != null && cells[numCol] ? cellText(cells[numCol]).replace(/\s+/g, " ").trim() : "";
-        if (numText && !/[0-9A-Za-z]/.test(numText)) numText = ""; // ignore stray "." / "-" in the number column
-        const reqCell = cells[reqCol];
-        const paras = reqCell ? childrenLocal(reqCell, "p") : [];
+        if (numText && !/[0-9A-Za-z]/.test(numText)) numText = ""; // ignore stray "." / "-"
+        const cell = cells[reqCol];
+        const paras = cell ? childrenLocal(cell, "p") : [];
         let first = true, emitted = false;
         for (const p of paras) {
           const info = paraNumInfo(p);
@@ -962,6 +1077,8 @@
       }
     }
 
+    detectedColumns = [];
+    detectedDefaultCol = "*";
     for (const ch of Array.from(bodyEl.children)) {
       if (ch.localName === "p") pushPara(ch);
       else if (ch.localName === "tbl") pushTable(ch);
@@ -1077,6 +1194,8 @@
     if (!file) return;
     filenameEl.textContent = "Reading " + file.name + "…";
     const name = file.name.toLowerCase();
+    lastDocxBuffer = null; // only a .docx populates the column picker
+    detectedColumns = [];
     try {
       let text;
       if (name.endsWith(".docx")) text = await readDocx(file);
@@ -1085,10 +1204,12 @@
       else text = await readAsText(file);
       inputText.value = text;
       filenameEl.textContent = "Loaded: " + file.name;
+      populateColumnPicker();
       render();
     } catch (err) {
       console.error(err);
       filenameEl.textContent = "";
+      populateColumnPicker();
       toast("Couldn't read " + file.name + " — try pasting the text instead.");
     }
   }
@@ -1121,15 +1242,22 @@
     summaryEl.hidden = true;
     clausesEl.innerHTML = '<div class="empty">No questions yet — upload or paste a checklist, then press Flatten.</div>';
     copyBtn.disabled = downloadBtn.disabled = true;
+    lastDocxBuffer = null;
+    detectedColumns = [];
+    populateColumnPicker();
   });
   $("load-example").addEventListener("click", () => {
     inputText.value = EXAMPLE;
     filenameEl.textContent = "";
+    lastDocxBuffer = null;
+    detectedColumns = [];
+    populateColumnPicker();
     render();
   });
   [granularitySel, separatorSel].forEach((el) =>
     el.addEventListener("change", () => { if (inputText.value.trim()) render(); })
   );
+  columnSel.addEventListener("change", onColumnChange);
 
   copyBtn.addEventListener("click", async () => {
     if (!lastOutput) return;

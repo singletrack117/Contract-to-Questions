@@ -70,6 +70,16 @@ the document's XML (via JSZip), and full-width rows are treated as `PART`
 headings. The result is one clean, correctly-levelled question per requirement,
 with none of the "Cover Page / Paragraph 7 / -" reference noise.
 
+### Choosing the column
+
+When a `.docx` table is loaded, the **Column to flatten** picker (under *Group
+questions by level*) fills with that table's column headings. It defaults to the
+*Disclosure Requirement* column, but you can point it at any column — `SECTION`,
+`PAGE(S)`, `REMARKS`, the number column, or *All columns (join every cell)* — and
+the questions are re-extracted from your choice. `PART` headings are kept
+whichever column you pick; the `(a)/(i)/(A)` numbering and the adjacent number
+column are only merged in for the requirement column itself.
+
 ## Features
 
 - **Upload a checklist**: Word (`.docx`), PDF (`.pdf`), email (`.eml`), or plain
