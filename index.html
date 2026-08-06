@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>A&amp;GEL Contract-to-Questions</title>
+<title>A&amp;GEL Checklist-to-Questions</title>
 <style>
   :root {
     /* A&GEL brand palette — cream ground, navy-to-azure gradient */
@@ -245,6 +245,17 @@
   }
   .clause .num.pre { background: #eee9dd; color: var(--muted); border-color: #d9d3c5; }
   .clause .body { font-size: 0.9rem; color: var(--text); }
+  .clause .lvl {
+    flex: none; align-self: flex-start; min-width: 1.9rem; text-align: center;
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted); border: 1px solid var(--panel-edge); border-radius: 5px;
+    padding: 0.12rem 0.3rem; margin-top: 0.05rem;
+  }
+  .clause[data-level="1"] { border-left: 3px solid var(--navy); }
+  .clause[data-level="2"] { border-left: 3px solid var(--blue); }
+  .clause[data-level="3"] { border-left: 3px solid var(--azure); }
+  .clause[data-level="4"] { border-left: 3px solid #7fc4e6; }
+  .clause[data-level="5"] { border-left: 3px solid #b7ddf0; }
   .empty { text-align: center; color: var(--muted); padding: 1.6rem 0; font-size: 0.88rem; }
   .toast {
     position: fixed; bottom: 1.4rem; left: 50%; transform: translateX(-50%) translateY(2rem);
@@ -283,17 +294,17 @@
 </svg></div>
 
 <div class="device">
-  <h1 class="wordmark">A&amp;GEL <span>Contract-to-Questions</span></h1>
-  <p class="tagline"><strong>Flatten a contract into clause paragraphs.</strong> Use this mini-app to generate question lists comprised of an entire document or agreement. It&rsquo;s excellent to do line-by-line level comparison across your precedents or checklists.</p>
+  <h1 class="wordmark">A&amp;GEL <span>Checklist-to-Questions</span></h1>
+  <p class="tagline"><strong>Flatten a checklist into a leveled list of questions.</strong> Drop in a disclosure schedule, requirements checklist, or any numbered document and this mini-app turns every requirement into one question &mdash; each tagged with its level (top &rarr; 5th) so you can group, fold, or compare line-by-line against your precedents.</p>
 
-  <h2 class="section-title">Upload Contract
+  <h2 class="section-title">Upload Checklist
     <span class="title-actions">
       <button type="button" class="small" id="load-example">Load example</button>
     </span>
   </h2>
 
-  <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Upload a contract file">
-    <strong>Drop a contract here, or click to browse</strong>
+  <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Upload a checklist file">
+    <strong>Drop a checklist or schedule here, or click to browse</strong>
     <span class="hint">Word (.docx), PDF (.pdf), email (.eml), or plain text (.txt, .md)</span>
     <div class="filename" id="filename"></div>
   </div>
@@ -303,17 +314,19 @@
 
   <div class="field">
     <label for="input-text">Contract text</label>
-    <textarea id="input-text" placeholder="Paste the contract here — clauses can span multiple lines; the tool joins each clause into one paragraph."></textarea>
+    <textarea id="input-text" placeholder="Paste the checklist here — each requirement can span multiple lines; the tool joins each item into one question. Markers such as PART 1, 1., (a), (i), (A) or 1.1.1 set the level."></textarea>
   </div>
 
   <div class="options">
     <div class="field">
-      <label for="granularity">Clause grouping</label>
+      <label for="granularity">Group questions by level</label>
       <select id="granularity">
-        <option value="top" selected>Top-level only &mdash; group sub-clauses (1.1, 1.1.1&hellip;) under clause 1</option>
-        <option value="2">2nd-level &mdash; split down to 1.1, group deeper (1.1.1&hellip;) under it</option>
-        <option value="3">3rd-level &mdash; split down to 1.1.1, group deeper (1.1.1.1&hellip;) under it</option>
-        <option value="all">Every numbered item is its own clause</option>
+        <option value="1">Top level only &mdash; fold every sub-level into the top heading</option>
+        <option value="2">Down to 2nd level &mdash; fold levels 3&ndash;5 into their 2nd-level item</option>
+        <option value="3">Down to 3rd level &mdash; fold levels 4&ndash;5 into their 3rd-level item</option>
+        <option value="4">Down to 4th level &mdash; fold level 5 into its 4th-level item</option>
+        <option value="5">Down to 5th level &mdash; split every level, fold anything deeper</option>
+        <option value="all" selected>Every line a level &mdash; each line becomes its own question</option>
       </select>
     </div>
     <div class="field">
@@ -326,7 +339,7 @@
   </div>
 
   <div class="actions">
-    <button type="button" class="primary" id="convert">Convert to Question List</button>
+    <button type="button" class="primary" id="convert">Flatten to Questions</button>
     <button type="button" id="clear">Clear</button>
   </div>
 
@@ -338,19 +351,19 @@
   </h2>
 
   <div class="summary" id="summary" hidden>
-    <div><span class="label">Clauses</span><strong id="stat-clauses">0</strong></div>
-    <div><span class="label">Line breaks removed</span><strong id="stat-removed">0</strong></div>
+    <div><span class="label">Questions</span><strong id="stat-clauses">0</strong></div>
+    <div><span class="label">Levels</span><strong id="stat-levels">0</strong></div>
     <div><span class="label">Words</span><strong id="stat-words">0</strong></div>
     <div><span class="label">Characters</span><strong id="stat-chars">0</strong></div>
   </div>
 
   <div class="field">
-    <label for="output-text">Flattened text &mdash; one paragraph per clause</label>
-    <textarea id="output-text" readonly placeholder="The converted clause list will appear here."></textarea>
+    <label for="output-text">Flattened text &mdash; one line per question</label>
+    <textarea id="output-text" readonly placeholder="The converted question list will appear here."></textarea>
   </div>
 
-  <div class="clauses" id="clauses"><div class="empty">No clauses yet &mdash; upload or paste a contract, then press Convert.</div></div>
-  <p class="note">Everything runs in your browser. Nothing is uploaded to a server. Word and PDF parsing use on-demand libraries (JSZip, mammoth.js, pdf.js); if those cannot load, paste the text instead.</p>
+  <div class="clauses" id="clauses"><div class="empty">No questions yet &mdash; upload or paste a checklist, then press Flatten.</div></div>
+  <p class="note">Everything runs in your browser. Nothing is uploaded to a server. Word checklists laid out as tables (e.g. a &ldquo;Disclosure Requirement&rdquo; schedule) are read column-aware &mdash; only the requirement text is pulled, and its PART / 1. / (a) / (i) / (A) numbering is reconstructed into levels. Word and PDF parsing use on-demand libraries (JSZip, mammoth.js, pdf.js); if those cannot load, paste the text instead.</p>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -373,9 +386,18 @@
   const toastEl = $("toast");
 
   const EXAMPLE = [
-    "1. General: This clause is the start.",
-    "1.1 This is the subclause which should be treated as clause 1.",
-    "2. Scope of agreement: this clause is the second clause"
+    "PART 1 OF THE 5TH SCHEDULE SFR: FRONT COVER",
+    "1. On the front cover of the prospectus, provide:",
+    "(a) the date of registration of the prospectus;",
+    "(b) the following statements:",
+    "(i) \"This document is important. Before making any investment in the securities being offered, you should consider the information provided in this document carefully\";",
+    "(ii) \"A copy of this prospectus has been lodged with and registered by the Monetary Authority of Singapore\";",
+    "(c) the name of the corporation in respect of which the shares are being offered.",
+    "PART 2 OF THE 5TH SCHEDULE SFR: IDENTITY OF DIRECTORS, KEY EXECUTIVES, ADVISERS AND AGENTS",
+    "Directors and Key Executives",
+    "1. Provide the names, addresses and occupations of each of the directors and key executives of the relevant corporation.",
+    "Advisers",
+    "2. Provide the names and addresses of the principal banker, the issue manager and the legal adviser to the offer."
   ].join("\n");
 
   /* ---------- Toast ---------- */
@@ -387,33 +409,69 @@
     toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2200);
   }
 
-  /* ---------- Clause detection ---------- */
-  // Keyword-led headings such as "Clause 3", "Section 2.1", "Article 5".
-  const KEYWORD_HEAD_RE = /^\s*(?:clause|section|article|part|schedule|appendix)\s+(\d+(?:\.\d+)*)\b(.*)$/i;
+  /* ---------- Marker & level detection ----------
+   * A checklist item is identified by the marker that starts its line. We
+   * recognise the marker families a legal schedule uses and rank them into a
+   * hierarchy, deepest last:
+   *
+   *   PART / SECTION heading      →  top
+   *   1.  2)                      →  integer item
+   *   1.1  1.1.1                  →  dotted item (depth = number of parts)
+   *   (a)  a)                     →  lettered item
+   *   (i)  i)                     →  roman item
+   *   (A)  A)                     →  upper-letter item
+   *
+   * Each family gets a "depth class"; the shallowest class actually present in
+   * the document becomes level 1, so the same code handles a full PART→(A)
+   * schedule (levels 1–5) and a plain "1 / 1.1 / 1.1.1" contract (levels 1–3).
+   */
+  const HEAD_KEYWORDS = "part|section|article|schedule|appendix|chapter|division|annex";
+  const HEAD_RE = new RegExp("^\\s*(?:" + HEAD_KEYWORDS + ")\\s+(?:\\d+|[ivxlcdm]+)\\b", "i");
+  const ROMAN_RE = /^(m{0,3})(cm|cd|d?c{0,3})(xc|xl|l?x{0,3})(ix|iv|v?i{0,3})$/i;
+  const AMBIG_ROMAN = "ivxlcdm"; // single letters that are also roman numerals
 
-  // Numbering depth of the marker that starts a line: 1 for "1." / "2)",
-  // 2 for "1.1", 3 for "1.1.1", and so on. Returns 0 when the line has no
-  // clause marker at all.
-  //  - a dotted number ("1.1", "1.1.1") counts with or without a trailing . or )
-  //  - a bare number needs a trailing "." or ")" ("1.", "2)") to count as a marker
-  //  - a keyword heading ("Part 3", "Section 2.1") counts only when the line
-  //    reads like a heading (short / ends after the number), not prose that
-  //    merely starts with the word (e.g. "Schedule 1 will apply to this…")
+  // Does this line already begin with any recognised numbering marker? Used by
+  // the .docx reader to avoid prefixing a reconstructed number onto text that
+  // already carries one.
   function markerDepth(line) {
-    let m = line.match(/^\s*(\d+(?:\.\d+)+)[.)]?(?=\s|$)/);
-    if (m) return m[1].split(".").length;
-    m = line.match(/^\s*\d+[.)](?=\s|$)/);
-    if (m) return 1;
-    m = line.match(KEYWORD_HEAD_RE);
-    if (m) {
-      const rest = (m[2] || "").trim();
-      const words = line.trim().split(/\s+/).length;
-      // A period right after the number ("Schedule 1. Notice will be deemed…")
-      // signals a cross-reference in prose, not a heading — never a marker.
-      if (/^\./.test(rest)) return 0;
-      if (rest === "" || /^[-–—:)]/.test(rest) || words <= 6) return m[1].split(".").length;
+    return markerToken(line).kind !== "none" && markerToken(line).kind !== "uhead" ? 1 : 0;
+  }
+
+  // Classify the marker a single line starts with. Returns a token describing
+  // its family; roman-vs-letter ambiguity for a lone "i/v/x" is left as "ambig"
+  // and resolved later using the surrounding sequence.
+  function markerToken(line) {
+    const s = line.trim();
+    if (!s) return { kind: "none" };
+    // PART / SECTION / ARTICLE … heading (keyword followed by a number/roman)
+    if (HEAD_RE.test(s)) {
+      const marker = s.split(/\s{2,}|:|—|–|\s-\s/)[0].trim();
+      return { kind: "part", marker: marker.length <= 40 ? marker : s.slice(0, 24).trim() };
     }
-    return 0;
+    // dotted number: 1.1, 1.1.1 …
+    let m = s.match(/^(\d+(?:\.\d+)+)[.)]?(?=\s|$)/);
+    if (m) return { kind: "dotted", depth: m[1].split(".").length, marker: m[1] };
+    // integer: 1. 2)
+    m = s.match(/^(\d+)[.)](?=\s|$)/);
+    if (m) return { kind: "int", marker: m[1] + "." };
+    // upper-letter: (A) A) A.
+    m = s.match(/^\(([A-Z])\)(?=\s|$)|^([A-Z])[.)](?=\s|$)/);
+    if (m) return { kind: "upper", marker: (m[0] || "").trim() };
+    // lower token in parens/suffix: letter or roman
+    m = s.match(/^\(([a-z]{1,4})\)(?=\s|$)|^([a-z]{1,4})[.)](?=\s|$)/);
+    if (m) {
+      const tok = m[1] || m[2];
+      const marker = (m[0] || "").trim();
+      const isRoman = ROMAN_RE.test(tok) && tok.length > 0;
+      if (tok.length > 1) return { kind: isRoman ? "roman" : "letter", ch: tok, marker };
+      // single character
+      if (AMBIG_ROMAN.indexOf(tok) >= 0) return { kind: "ambig", ch: tok, marker };
+      return { kind: "letter", ch: tok, marker };
+    }
+    // no marker — is it a short stand-alone heading (e.g. "Advisers")?
+    const words = s.split(/\s+/).length;
+    if (words <= 10 && /^[A-Z]/.test(s) && !/[.,;:]$/.test(s)) return { kind: "uhead" };
+    return { kind: "none" };
   }
 
   // Format a counter value the way Word's numFmt asks: 1, A/a, I/i, 01…
@@ -488,46 +546,105 @@
     return out;
   }
 
-  // Deepest numbering level that still starts a new clause, per dropdown value.
-  // "top" => 1, "2" => 2, "3" => 3, "all" => no limit.
+  // Deepest level that still starts a new question, per dropdown value.
+  // "1".."5" => that level, "all" => every line stands alone.
   function maxLevelFor(mode) {
     if (mode === "all") return Infinity;
     const n = parseInt(mode, 10);
     return Number.isFinite(n) ? n : 1;
   }
 
-  // Pull a short label (the leading number) for display.
-  function labelFor(line) {
-    const m = line.match(/^\s*((?:clause|section|article|part|schedule|appendix)\s+)?(\d+(?:\.\d+)*)/i);
-    return m ? m[2] : "";
+  // "Depth class" for a marker family, before normalisation. Lower = shallower.
+  // Integer and a bare stand-alone heading share class 1 (siblings under a PART);
+  // lettered/roman/upper sit progressively deeper; dotted numbers use their own
+  // part-count so "1 / 1.1 / 1.1.1" maps to 1 / 2 / 3.
+  function depthClass(tok) {
+    switch (tok.kind) {
+      case "part": return 0;
+      case "int": return 1;
+      case "uhead": return 1;
+      case "dotted": return tok.depth;
+      case "letter": return 2;
+      case "roman": return 3;
+      case "upper": return 4;
+      default: return null; // "none" — a continuation line
+    }
   }
 
-  function convert(raw, mode) {
-    const lines = normalizeLines(raw.replace(/\r\n?/g, "\n").split("\n"));
-    const maxLevel = maxLevelFor(mode);
-    const starter = (line) => {
-      const d = markerDepth(line);
-      return d > 0 && d <= maxLevel;
-    };
-    const clauses = [];
-    let current = null;
-
-    for (const line of lines) {
-      if (line.trim() === "") continue; // blank lines are just separators
-      if (starter(line)) {
-        if (current !== null) clauses.push(current);
-        current = line.trim();
-      } else if (current === null) {
-        // Preamble before the first numbered clause (title, parties, recitals).
-        current = line.trim();
-      } else {
-        current += " " + line.trim();
+  // Turn raw lines into nodes carrying a normalised level (1 = shallowest marker
+  // present) and their display marker. Continuation lines get level Infinity so
+  // they always fold into the item above them.
+  function buildNodes(lines) {
+    const toks = lines.map(markerToken);
+    // Resolve ambiguous lone letters that are also roman numerals (c, d, i, l,
+    // m, v, x). A lettered list ((a)(b)(c)…) may be interrupted by a nested
+    // roman list ((i)(ii)…) and then resume ((c)(d)…), so we remember the next
+    // letter the open lettered list expects — across the roman run — and treat
+    // an ambiguous token as that letter when it matches, otherwise as roman.
+    let letterExpect = null;
+    for (const t of toks) {
+      if (t.kind === "part" || t.kind === "int" || t.kind === "dotted" || t.kind === "uhead") {
+        letterExpect = null; // a new parent item restarts any lettered list
+      } else if (t.kind === "letter") {
+        letterExpect = t.ch.charCodeAt(0) + 1;
+      } else if (t.kind === "ambig") {
+        if (letterExpect != null && t.ch.charCodeAt(0) === letterExpect) {
+          t.kind = "letter";
+          letterExpect = t.ch.charCodeAt(0) + 1;
+        } else {
+          t.kind = "roman";
+        }
       }
     }
-    if (current !== null) clauses.push(current);
+    let min = Infinity;
+    toks.forEach((t) => { const d = depthClass(t); if (d != null && d < min) min = d; });
+    if (!isFinite(min)) min = 0;
+    return lines.map((line, i) => {
+      const t = toks[i];
+      const d = depthClass(t);
+      return { text: line.trim(), level: d == null ? Infinity : d - min + 1, marker: t.marker || "" };
+    });
+  }
 
-    // Normalise each clause: no internal line breaks, tidy spacing around periods.
-    return clauses.map((c) => c.replace(/\s+/g, " ").replace(/\s+([.,;:)])/g, "$1").trim());
+  // Short label (the leading marker) for a question card.
+  function labelFor(line) {
+    return markerToken(line).marker || "";
+  }
+
+  // Flatten to questions. Returns [{ text, level, marker }].
+  function convert(raw, mode) {
+    const lines = normalizeLines(raw.replace(/\r\n?/g, "\n").split("\n")).filter((l) => l.trim() !== "");
+    const nodes = buildNodes(lines);
+    const everyLine = mode === "all";
+    const maxLevel = maxLevelFor(mode);
+    const out = [];
+    let current = null;
+    let lastLevel = 1; // depth of the most recent marked line — continuations inherit it
+
+    for (const n of nodes) {
+      if (!n.text) continue;
+      const finite = isFinite(n.level);
+      const lvl = finite ? n.level : lastLevel; // unmarked continuation → parent depth
+      const starts = everyLine || (finite && n.level <= maxLevel);
+      if (starts) {
+        if (current) out.push(current);
+        current = { text: n.text, level: lvl, marker: n.marker };
+      } else if (current === null) {
+        // Preamble before the first marked line (title, definitions).
+        current = { text: n.text, level: lvl, marker: n.marker };
+      } else {
+        current.text += " " + n.text;
+      }
+      if (finite) lastLevel = n.level;
+    }
+    if (current) out.push(current);
+
+    // Tidy each question: single spaces, no space before closing punctuation.
+    return out.map((c) => ({
+      text: c.text.replace(/\s+/g, " ").replace(/\s+([.,;:)])/g, "$1").trim(),
+      level: c.level,
+      marker: c.marker,
+    }));
   }
 
   /* ---------- Render ---------- */
@@ -535,41 +652,46 @@
   function render() {
     const raw = inputText.value;
     if (raw.trim() === "") {
-      toast("Nothing to convert — add some contract text first.");
+      toast("Nothing to flatten — add some checklist text first.");
       return;
     }
-    const clauses = convert(raw, granularitySel.value);
+    const questions = convert(raw, granularitySel.value);
     const sep = separatorSel.value === "blank" ? "\n\n" : "\n";
-    lastOutput = clauses.join(sep);
+    lastOutput = questions.map((q) => q.text).join(sep);
     outputText.value = lastOutput;
 
     // Stats
-    const originalBreaks = (raw.replace(/\r\n?/g, "\n").match(/\n/g) || []).length;
-    const keptBreaks = (lastOutput.match(/\n/g) || []).length;
-    const removed = Math.max(0, originalBreaks - keptBreaks);
     const words = (lastOutput.match(/\S+/g) || []).length;
-    $("stat-clauses").textContent = clauses.length;
-    $("stat-removed").textContent = removed;
+    const levels = new Set(questions.map((q) => q.level)).size;
+    $("stat-clauses").textContent = questions.length;
+    $("stat-levels").textContent = levels;
     $("stat-words").textContent = words;
     $("stat-chars").textContent = lastOutput.length;
     summaryEl.hidden = false;
 
     // Cards
     clausesEl.innerHTML = "";
-    if (!clauses.length) {
-      clausesEl.innerHTML = '<div class="empty">No clauses detected.</div>';
+    if (!questions.length) {
+      clausesEl.innerHTML = '<div class="empty">No questions detected.</div>';
     } else {
       const frag = document.createDocumentFragment();
-      clauses.forEach((c) => {
-        const label = labelFor(c);
+      questions.forEach((q) => {
+        const label = q.marker;
+        const lvl = Math.min(q.level, 5);
         const row = document.createElement("div");
         row.className = "clause";
+        row.setAttribute("data-level", String(lvl));
+        row.style.marginLeft = (q.level > 1 ? Math.min(q.level - 1, 4) * 1.1 : 0) + "rem";
+        const lvlTag = document.createElement("span");
+        lvlTag.className = "lvl";
+        lvlTag.textContent = "L" + q.level;
         const num = document.createElement("span");
         num.className = "num" + (label ? "" : " pre");
         num.textContent = label || "—";
         const body = document.createElement("span");
         body.className = "body";
-        body.textContent = c;
+        body.textContent = q.text;
+        row.appendChild(lvlTag);
         row.appendChild(num);
         row.appendChild(body);
         frag.appendChild(row);
@@ -577,8 +699,8 @@
       clausesEl.appendChild(frag);
     }
 
-    copyBtn.disabled = downloadBtn.disabled = clauses.length === 0;
-    toast(clauses.length + " clause" + (clauses.length === 1 ? "" : "s") + " ready.");
+    copyBtn.disabled = downloadBtn.disabled = questions.length === 0;
+    toast(questions.length + " question" + (questions.length === 1 ? "" : "s") + " ready.");
   }
 
   /* ---------- File reading ---------- */
@@ -760,22 +882,89 @@
       return out;
     }
 
+    const bodyEl = childLocal(doc.documentElement, "body");
     const lines = [];
-    const paras = Array.from(doc.getElementsByTagName("*")).filter((e) => e.localName === "p");
-    for (const p of paras) {
+
+    // One line per body-level paragraph, honouring its reconstructed number and
+    // any soft line breaks inside it.
+    function pushPara(p) {
       const info = paraNumInfo(p);
       const num = info ? nextNumber(info.numId, info.ilvl) : null;
       const subLines = paraText(p)
         .split("\n")
         .map((s) => s.replace(/[ \t]+/g, " ").trim())
         .filter(Boolean);
-      if (!subLines.length) continue;
-      if (num != null && markerDepth(subLines[0]) === 0) {
-        // num is already the fully formatted marker ("1.", "1.1", "(1)",
-        // "Schedule 1"); just place it in front of the clause text.
-        subLines[0] = num + " " + subLines[0];
-      }
+      if (!subLines.length) return;
+      if (num != null && markerDepth(subLines[0]) === 0) subLines[0] = num + " " + subLines[0];
       for (const sl of subLines) lines.push(sl);
+    }
+
+    // Plain text of a table cell — all its paragraphs joined.
+    function cellText(tc) {
+      return childrenLocal(tc, "p")
+        .map((p) => paraText(p).replace(/\s+/g, " ").trim())
+        .filter(Boolean)
+        .join(" ");
+    }
+
+    // A checklist is usually a table whose columns are
+    //   [ №  |  DISCLOSURE REQUIREMENT  |  SECTION  |  PAGE(S)  |  REMARKS ].
+    // Keep only the number column and the requirement column — the questions —
+    // and drop the cross-reference columns, reconstructing each requirement's
+    // (a)/(i)/(A) numbering as we go. Full-width rows are PART/section headings.
+    // A table with no recognisable requirement header falls back to joining
+    // every cell (ordinary contract tables).
+    function pushTable(tbl) {
+      const rows = childrenLocal(tbl, "tr");
+      let reqCol = null;
+      for (const tr of rows) {
+        const cells = childrenLocal(tr, "tc");
+        for (let ci = 0; ci < cells.length; ci++) {
+          if (cellText(cells[ci]).toUpperCase().indexOf("DISCLOSURE REQUIREMENT") >= 0) { reqCol = ci; break; }
+        }
+        if (reqCol != null) break;
+      }
+      const numCol = reqCol != null && reqCol - 1 >= 0 ? reqCol - 1 : null;
+      let headerDone = false;
+      for (const tr of rows) {
+        const cells = childrenLocal(tr, "tc");
+        if (cells.length <= 1) { // full-width row → PART / section heading
+          const t = cells.length ? cellText(cells[0]) : "";
+          if (t) lines.push(t);
+          continue;
+        }
+        if (reqCol == null) { // generic table — keep every cell
+          const t = cells.map(cellText).filter(Boolean).join(" — ");
+          if (t) lines.push(t);
+          continue;
+        }
+        if (!headerDone && cells.map(cellText).join(" ").toUpperCase().indexOf("DISCLOSURE REQUIREMENT") >= 0) {
+          headerDone = true; // drop the header row once
+          continue;
+        }
+        let numText = numCol != null && cells[numCol] ? cellText(cells[numCol]).replace(/\s+/g, " ").trim() : "";
+        if (numText && !/[0-9A-Za-z]/.test(numText)) numText = ""; // ignore stray "." / "-" in the number column
+        const reqCell = cells[reqCol];
+        const paras = reqCell ? childrenLocal(reqCell, "p") : [];
+        let first = true, emitted = false;
+        for (const p of paras) {
+          const info = paraNumInfo(p);
+          const num = info ? nextNumber(info.numId, info.ilvl) : null;
+          let txt = paraText(p).replace(/\s+/g, " ").trim();
+          if (num != null && txt && markerDepth(txt) === 0) txt = num + " " + txt;
+          else if (num != null && !txt) txt = num;
+          if (first && numText) txt = txt ? numText + " " + txt : numText;
+          txt = txt.trim();
+          if (txt) { lines.push(txt); emitted = true; }
+          first = false;
+        }
+        if (!emitted && numText) lines.push(numText);
+      }
+    }
+
+    for (const ch of Array.from(bodyEl.children)) {
+      if (ch.localName === "p") pushPara(ch);
+      else if (ch.localName === "tbl") pushTable(ch);
     }
     return lines.join("\n");
   }
@@ -930,7 +1119,7 @@
     filenameEl.textContent = "";
     fileInput.value = "";
     summaryEl.hidden = true;
-    clausesEl.innerHTML = '<div class="empty">No clauses yet — upload or paste a contract, then press Convert.</div>';
+    clausesEl.innerHTML = '<div class="empty">No questions yet — upload or paste a checklist, then press Flatten.</div>';
     copyBtn.disabled = downloadBtn.disabled = true;
   });
   $("load-example").addEventListener("click", () => {
